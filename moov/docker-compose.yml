@@ -1,9 +1,15 @@
 version: '3.8'
 
+# =============================================================================
+# MOOV PAYMENT RAILS - ACH, Wire, ISO20022
+# =============================================================================
+# US Payment processing services
+# =============================================================================
+
 services:
   # ACH file handling for US domestic payments
   ach:
-    image: moov/ach:latest
+    image: moov/ach:v1.33.5
     container_name: moov-ach
     restart: always
     ports:
@@ -15,10 +21,18 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
+    networks:
+      - moov-network
+      - mifos-app
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
 
   # Wire/FedWire handling
   wire:
-    image: moov/wire:latest
+    image: moov/wire:v0.10.0
     container_name: moov-wire
     restart: always
     ports:
@@ -30,17 +44,36 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
+    networks:
+      - moov-network
+      - mifos-app
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
 
   # ISO 20022 message handling
   iso20022:
-    image: moov/iso20022:latest
+    image: moov/iso20022:v0.3.0
     container_name: moov-iso20022
     restart: always
     ports:
       - "8202:8080"
     environment:
       - LOG_FORMAT=plain
+    networks:
+      - moov-network
+      - mifos-app
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
 
 networks:
-  default:
+  moov-network:
     name: moov-network
+    driver: bridge
+  mifos-app:
+    external: true

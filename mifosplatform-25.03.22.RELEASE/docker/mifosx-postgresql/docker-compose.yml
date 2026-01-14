@@ -5,8 +5,8 @@ services:
     image: openmf/web-app:1.11
     restart: always
     environment:
-      - FINERACT_API_URLS=http://localhost:8080
-      - FINERACT_API_URL=http://localhost:8080
+      - FINERACT_API_URLS=https://localhost:8443
+      - FINERACT_API_URL=https://localhost:8443
       - FINERACT_API_PROVIDER=/fineract-provider/api
       - FINERACT_API_VERSION=/v1
       - FINERACT_PLATFORM_TENANT_IDENTIFIER=default
@@ -16,20 +16,33 @@ services:
       - MIFOS_DEFAULT_CHAR_DELIMITER=,
     ports:
       - 80:80
+    networks:
+      - fineract-network
+
   # Database service
   postgresql:
     image: postgres:16.6
     volumes:
       - ./fineract-db/docker/01-init.sh:/docker-entrypoint-initdb.d/01-init.sh:Z,ro
+      - postgres-data:/var/lib/postgresql/data
     restart: always
-    env_file:
-      - ./fineract-db/docker/postgresql.env
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - FINERACT_DB_USER=postgres
+      - FINERACT_DB_PASS=${POSTGRES_PASSWORD}
+      - FINERACT_TENANTS_DB_NAME=fineract_tenants
+      - FINERACT_TENANT_DEFAULT_DB_NAME=fineract_default
     healthcheck:
-      test: [ "CMD", "pg_isready", "-q", "-d", "postgres", "-U", "root" ]
+      test: [ "CMD", "pg_isready", "-q", "-d", "postgres", "-U", "postgres" ]
       timeout: 10s
       retries: 10
-    ports:
-      - "5432:5432"
+    # SECURITY: Database port not exposed externally
+    expose:
+      - "5432"
+    networks:
+      - fineract-network
+
   # Backend service
   fineract-server:
     image: openmf/fineract:1.11
@@ -40,7 +53,7 @@ services:
       timeout: 10s
       retries: 10
     ports:
-      - 8080:8080
+      - 8443:8443
     depends_on:
       postgresql:
         condition: service_healthy
@@ -49,9 +62,9 @@ services:
       - FINERACT_NODE_ID=1
       # NOTE: env vars prefixed "FINERACT_HIKARI_*" are used to configure the database connection pool
       - FINERACT_HIKARI_DRIVER_SOURCE_CLASS_NAME=org.postgresql.Driver
-      - FINERACT_HIKARI_JDBC_URL=jdbc:postgresql://postgresql:5432/fineract_tenants
+      - FINERACT_HIKARI_JDBC_URL=jdbc:postgresql://postgresql:5432/fineract_tenants?sslmode=prefer
       - FINERACT_HIKARI_USERNAME=postgres
-      - FINERACT_HIKARI_PASSWORD=skdcnwauicn2ucnaecasdsajdnizucawencascdca
+      - FINERACT_HIKARI_PASSWORD=${POSTGRES_PASSWORD}
       # ... following variables are optional; "application.properties" contains reasonable defaults (same as here)
       - FINERACT_HIKARI_MINIMUM_IDLE=3
       - FINERACT_HIKARI_MAXIMUM_POOL_SIZE=10
@@ -75,12 +88,22 @@ services:
       - FINERACT_DEFAULT_TENANTDB_HOSTNAME=postgresql
       - FINERACT_DEFAULT_TENANTDB_PORT=5432
       - FINERACT_DEFAULT_TENANTDB_UID=postgres
-      - FINERACT_DEFAULT_TENANTDB_PWD=skdcnwauicn2ucnaecasdsajdnizucawencascdca
+      - FINERACT_DEFAULT_TENANTDB_PWD=${POSTGRES_PASSWORD}
       - FINERACT_DEFAULT_TENANTDB_CONN_PARAMS=
-      - FINERACT_DEFAULT_TENANTDB_TIMEZONE=Asia/Kolkata
+      - FINERACT_DEFAULT_TENANTDB_TIMEZONE=America/New_York
       - FINERACT_DEFAULT_TENANTDB_IDENTIFIER=default
       - FINERACT_DEFAULT_TENANTDB_NAME=fineract_default
       - FINERACT_DEFAULT_TENANTDB_DESCRIPTION=Default Demo Tenant
-      - FINERACT_SERVER_SSL_ENABLED=false
-      - FINERACT_SERVER_PORT=8080
+      # SECURITY: SSL enabled
+      - FINERACT_SERVER_SSL_ENABLED=true
+      - FINERACT_SERVER_PORT=8443
       - FINERACT_LOGGING_LEVEL=INFO
+    networks:
+      - fineract-network
+
+volumes:
+  postgres-data:
+
+networks:
+  fineract-network:
+    name: mifos-fineract-network
