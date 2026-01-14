@@ -9,7 +9,7 @@ version: '3.8'
 services:
   # ACH file handling for US domestic payments
   ach:
-    image: moov/ach:v1.33.5
+    image: moov/ach:latest
     container_name: moov-ach
     restart: always
     ports:
@@ -32,7 +32,7 @@ services:
 
   # Wire/FedWire handling
   wire:
-    image: moov/wire:v0.10.0
+    image: moov/wire:latest
     container_name: moov-wire
     restart: always
     ports:
@@ -55,7 +55,7 @@ services:
 
   # ISO 20022 message handling
   iso20022:
-    image: moov/iso20022:v0.3.0
+    image: moov/iso20022:latest
     container_name: moov-iso20022
     restart: always
     ports:

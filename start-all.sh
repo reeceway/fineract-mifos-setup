@@ -69,14 +69,13 @@ print_status "Environment variables loaded"
 echo ""
 print_info "Creating shared Docker networks..."
 
-# Core banking network
-docker network create mifos-fineract-network 2>/dev/null || true
-# Application network for infrastructure services
+# Application network for infrastructure services (created before any compose)
 docker network create mifos-app 2>/dev/null || true
-# Moov payment rails network
-docker network create moov-network 2>/dev/null || true
 
-print_status "Shared networks created"
+# Note: mifos-fineract-network is created by Fineract's docker-compose
+# Note: moov-network is created by Moov's docker-compose
+
+print_status "Shared networks ready"
 
 # =============================================================================
 # LAYER 1: Core Banking (Fineract + Mifos)

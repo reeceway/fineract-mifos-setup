@@ -7,7 +7,8 @@
 # Run this after starting all services with ./start-all.sh
 # =============================================================================
 
-set -e
+# Don't exit on error - we want to run all tests even if some fail
+# set -e
 
 cd "$(dirname "$0")/.."
 
