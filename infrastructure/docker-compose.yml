@@ -1,0 +1,417 @@
+version: '3.8'
+
+# =============================================================================
+# COMPLETE INSTITUTIONAL BANKING INFRASTRUCTURE
+# =============================================================================
+# This stack provides enterprise-grade infrastructure components that integrate
+# with Apache Fineract and Mifos. All components are officially supported or
+# commonly used in production Fineract deployments.
+# =============================================================================
+
+services:
+
+  # ===========================================================================
+  # MESSAGE GATEWAY - SMS/Email Notifications (Official Mifos Component)
+  # ===========================================================================
+  # GitHub: https://github.com/openMF/message-gateway
+  # Supports: Twilio, Infobip for SMS; SMTP for email
+  # ===========================================================================
+  message-gateway:
+    image: openmf/message-gateway:latest
+    container_name: mifos-message-gateway
+    restart: always
+    ports:
+      - "9191:9191"
+    environment:
+      # Database
+      - SPRING_DATASOURCE_URL=jdbc:mysql://infra-mysql:3306/messagegateway
+      - SPRING_DATASOURCE_USERNAME=root
+      - SPRING_DATASOURCE_PASSWORD=mysql_password
+      # Twilio SMS (configure with your credentials)
+      - PROVIDER_TWILIO_AUTHTOKEN=${TWILIO_AUTH_TOKEN:-}
+      - PROVIDER_TWILIO_ACCOUNTSID=${TWILIO_ACCOUNT_SID:-}
+      - PROVIDER_TWILIO_PHONENO=${TWILIO_PHONE_NUMBER:-}
+      # Email SMTP
+      - SPRING_MAIL_HOST=${SMTP_HOST:-smtp.gmail.com}
+      - SPRING_MAIL_PORT=${SMTP_PORT:-587}
+      - SPRING_MAIL_USERNAME=${SMTP_USERNAME:-}
+      - SPRING_MAIL_PASSWORD=${SMTP_PASSWORD:-}
+    depends_on:
+      infra-mysql:
+        condition: service_healthy
+    networks:
+      - banking-network
+
+  # ===========================================================================
+  # KEYCLOAK - Enterprise Identity & Access Management
+  # ===========================================================================
+  # Provides: OAuth2, OpenID Connect, SAML, MFA, SSO
+  # Used by: Many Fineract production deployments for enterprise auth
+  # ===========================================================================
+  keycloak:
+    image: quay.io/keycloak/keycloak:23.0
+    container_name: mifos-keycloak
+    restart: always
+    command: start-dev
+    ports:
+      - "8180:8080"
+    environment:
+      - KEYCLOAK_ADMIN=admin
+      - KEYCLOAK_ADMIN_PASSWORD=admin
+      - KC_DB=postgres
+      - KC_DB_URL=jdbc:postgresql://keycloak-postgres:5432/keycloak
+      - KC_DB_USERNAME=keycloak
+      - KC_DB_PASSWORD=keycloak_password
+    depends_on:
+      keycloak-postgres:
+        condition: service_healthy
+    networks:
+      - banking-network
+
+  keycloak-postgres:
+    image: postgres:15-alpine
+    container_name: keycloak-postgres
+    restart: always
+    environment:
+      - POSTGRES_DB=keycloak
+      - POSTGRES_USER=keycloak
+      - POSTGRES_PASSWORD=keycloak_password
+    volumes:
+      - keycloak-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U keycloak"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - banking-network
+
+  # ===========================================================================
+  # MINIO - S3-Compatible Document Storage
+  # ===========================================================================
+  # Provides: Secure document storage for KYC, statements, reports
+  # S3 API compatible - works with any S3 SDK
+  # ===========================================================================
+  minio:
+    image: minio/minio:latest
+    container_name: mifos-minio
+    restart: always
+    command: server /data --console-address ":9001"
+    ports:
+      - "9000:9000"   # S3 API
+      - "9001:9001"   # Console UI
+    environment:
+      - MINIO_ROOT_USER=minio_admin
+      - MINIO_ROOT_PASSWORD=minio_password
+    volumes:
+      - minio-data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+    networks:
+      - banking-network
+
+  # Create default buckets on startup
+  minio-setup:
+    image: minio/mc:latest
+    container_name: minio-setup
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: >
+      /bin/sh -c "
+      mc alias set myminio http://minio:9000 minio_admin minio_password;
+      mc mb myminio/kyc-documents --ignore-existing;
+      mc mb myminio/loan-documents --ignore-existing;
+      mc mb myminio/statements --ignore-existing;
+      mc mb myminio/reports --ignore-existing;
+      mc mb myminio/signatures --ignore-existing;
+      exit 0;
+      "
+    networks:
+      - banking-network
+
+  # ===========================================================================
+  # APACHE KAFKA - Event Streaming Platform
+  # ===========================================================================
+  # Used by: Payment Hub EE, Risk Assessment Module, Event-driven architecture
+  # Provides: Real-time event streaming for transactions, notifications
+  # ===========================================================================
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.5.0
+    container_name: mifos-zookeeper
+    restart: always
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    volumes:
+      - zookeeper-data:/var/lib/zookeeper/data
+      - zookeeper-logs:/var/lib/zookeeper/log
+    networks:
+      - banking-network
+
+  kafka:
+    image: confluentinc/cp-kafka:7.5.0
+    container_name: mifos-kafka
+    restart: always
+    ports:
+      - "9092:9092"
+      - "29092:29092"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,PLAINTEXT_HOST://localhost:29092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      # Create topics automatically
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+    volumes:
+      - kafka-data:/var/lib/kafka/data
+    depends_on:
+      - zookeeper
+    networks:
+      - banking-network
+
+  # Kafka UI for monitoring
+  kafka-ui:
+    image: provectuslabs/kafka-ui:latest
+    container_name: mifos-kafka-ui
+    restart: always
+    ports:
+      - "8090:8080"
+    environment:
+      - KAFKA_CLUSTERS_0_NAME=mifos-cluster
+      - KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS=kafka:9092
+      - KAFKA_CLUSTERS_0_ZOOKEEPER=zookeeper:2181
+    depends_on:
+      - kafka
+    networks:
+      - banking-network
+
+  # ===========================================================================
+  # ELASTICSEARCH - Search & Audit Logging
+  # ===========================================================================
+  # Provides: Full-text search, audit trail, transaction logs
+  # Regulatory requirement: Complete audit logging for all operations
+  # ===========================================================================
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.11.0
+    container_name: mifos-elasticsearch
+    restart: always
+    ports:
+      - "9200:9200"
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - "ES_JAVA_OPTS=-Xms1g -Xmx1g"
+      - cluster.name=mifos-audit
+    volumes:
+      - elasticsearch-data:/usr/share/elasticsearch/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -s http://localhost:9200/_cluster/health | grep -q '\"status\":\"green\"\\|\"status\":\"yellow\"'"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    networks:
+      - banking-network
+
+  # ===========================================================================
+  # KIBANA - Visualization & Audit Dashboard
+  # ===========================================================================
+  # Provides: Dashboards for audit logs, transaction monitoring, analytics
+  # ===========================================================================
+  kibana:
+    image: docker.elastic.co/kibana/kibana:8.11.0
+    container_name: mifos-kibana
+    restart: always
+    ports:
+      - "5601:5601"
+    environment:
+      - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    networks:
+      - banking-network
+
+  # ===========================================================================
+  # LOGSTASH - Log Processing Pipeline
+  # ===========================================================================
+  # Ingests logs from Fineract, Payment Hub, and all services
+  # Parses and sends to Elasticsearch for audit compliance
+  # ===========================================================================
+  logstash:
+    image: docker.elastic.co/logstash/logstash:8.11.0
+    container_name: mifos-logstash
+    restart: always
+    ports:
+      - "5044:5044"   # Beats input
+      - "5000:5000"   # TCP input
+    volumes:
+      - ./logstash/pipeline:/usr/share/logstash/pipeline:ro
+    environment:
+      - "LS_JAVA_OPTS=-Xmx512m -Xms512m"
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    networks:
+      - banking-network
+
+  # ===========================================================================
+  # HASHICORP VAULT - Secrets Management
+  # ===========================================================================
+  # Provides: Secure storage for API keys, passwords, encryption keys
+  # Critical for: PCI-DSS compliance, HSM integration
+  # ===========================================================================
+  vault:
+    image: hashicorp/vault:1.15
+    container_name: mifos-vault
+    restart: always
+    ports:
+      - "8200:8200"
+    environment:
+      - VAULT_DEV_ROOT_TOKEN_ID=dev-token
+      - VAULT_DEV_LISTEN_ADDRESS=0.0.0.0:8200
+    cap_add:
+      - IPC_LOCK
+    volumes:
+      - vault-data:/vault/data
+    networks:
+      - banking-network
+
+  # ===========================================================================
+  # REDIS - Caching & Session Management
+  # ===========================================================================
+  # Provides: Session caching, rate limiting, real-time data
+  # ===========================================================================
+  redis:
+    image: redis:7-alpine
+    container_name: mifos-redis
+    restart: always
+    ports:
+      - "6379:6379"
+    command: redis-server --appendonly yes --requirepass redis_password
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "redis_password", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - banking-network
+
+  # ===========================================================================
+  # MYSQL - Message Gateway & Additional Services Database
+  # ===========================================================================
+  infra-mysql:
+    image: mysql:8.0
+    container_name: infra-mysql
+    restart: always
+    ports:
+      - "3308:3306"
+    environment:
+      - MYSQL_ROOT_PASSWORD=mysql_password
+      - MYSQL_DATABASE=messagegateway
+    volumes:
+      - infra-mysql-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - banking-network
+
+  # ===========================================================================
+  # NGINX - API Gateway & Load Balancer
+  # ===========================================================================
+  # Provides: SSL termination, load balancing, rate limiting
+  # Routes traffic to all banking services
+  # ===========================================================================
+  nginx:
+    image: nginx:alpine
+    container_name: mifos-nginx
+    restart: always
+    ports:
+      - "443:443"
+      - "8443:8443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
+    depends_on:
+      - keycloak
+      - minio
+    networks:
+      - banking-network
+
+  # ===========================================================================
+  # PROMETHEUS - Metrics Collection
+  # ===========================================================================
+  # Collects metrics from all services for monitoring
+  # ===========================================================================
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: mifos-prometheus
+    restart: always
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+    networks:
+      - banking-network
+
+  # ===========================================================================
+  # GRAFANA - Monitoring Dashboards
+  # ===========================================================================
+  # Provides: Real-time dashboards for system health, transactions, SLAs
+  # ===========================================================================
+  grafana:
+    image: grafana/grafana:latest
+    container_name: mifos-grafana
+    restart: always
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_USERS_ALLOW_SIGN_UP=false
+    volumes:
+      - grafana-data:/var/lib/grafana
+    depends_on:
+      - prometheus
+    networks:
+      - banking-network
+
+# =============================================================================
+# VOLUMES
+# =============================================================================
+volumes:
+  keycloak-postgres-data:
+  minio-data:
+  zookeeper-data:
+  zookeeper-logs:
+  kafka-data:
+  elasticsearch-data:
+  vault-data:
+  redis-data:
+  infra-mysql-data:
+  prometheus-data:
+  grafana-data:
+
+# =============================================================================
+# NETWORKS
+# =============================================================================
+networks:
+  banking-network:
+    name: mifos-banking-network
+    driver: bridge

@@ -1,0 +1,50 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: []
+
+rule_files: []
+
+scrape_configs:
+  # Prometheus self-monitoring
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+
+  # Fineract metrics (if actuator enabled)
+  - job_name: 'fineract'
+    metrics_path: '/fineract-provider/actuator/prometheus'
+    static_configs:
+      - targets: ['host.docker.internal:8080']
+
+  # Kafka metrics
+  - job_name: 'kafka'
+    static_configs:
+      - targets: ['kafka:9092']
+
+  # Redis metrics
+  - job_name: 'redis'
+    static_configs:
+      - targets: ['redis:6379']
+
+  # Elasticsearch metrics
+  - job_name: 'elasticsearch'
+    metrics_path: '/_prometheus/metrics'
+    static_configs:
+      - targets: ['elasticsearch:9200']
+
+  # MinIO metrics
+  - job_name: 'minio'
+    metrics_path: '/minio/v2/metrics/cluster'
+    static_configs:
+      - targets: ['minio:9000']
+
+  # Keycloak metrics
+  - job_name: 'keycloak'
+    metrics_path: '/metrics'
+    static_configs:
+      - targets: ['keycloak:8080']
