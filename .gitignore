@@ -1,0 +1,57 @@
+# Dependencies
+node_modules/
+vendor/
+
+# Build outputs
+*.class
+*.jar
+*.war
+build/
+target/
+dist/
+
+# IDE
+.idea/
+*.iml
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Docker volumes (don't commit data)
+**/data/
+**/volumes/
+
+# Environment files with secrets
+.env
+.env.local
+.env.production
+*.env.local
+
+# Keep .env.dev as example but not production secrets
+!.env.dev.example
+!.env.example
+
+# Logs
+*.log
+logs/
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+# Database files
+*.sql
+!**/docker/*.sql
+*.dump
+
+# Credentials
+*.pem
+*.key
+*.crt
+credentials.json
+secrets.yaml
