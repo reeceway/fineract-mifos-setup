@@ -1,0 +1,26 @@
+version: '3.8'
+
+services:
+  # Customer Self-Service Portal
+  # This is the official Mifos Community App configured for customer self-service
+  customer-portal:
+    image: openmf/community-app:latest
+    container_name: mifos-customer-portal
+    restart: always
+    ports:
+      - "4200:80"
+    environment:
+      # Point to the Fineract API
+      - FINERACT_API_URL=http://host.docker.internal:8080
+      - FINERACT_API_PROVIDER=/fineract-provider/api
+      - FINERACT_API_VERSION=/v1
+      - FINERACT_PLATFORM_TENANT_IDENTIFIER=default
+      # Self-service mode
+      - MIFOS_DEFAULT_LANGUAGE=en-US
+      - MIFOS_PRELOAD_CLIENTS=false
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+networks:
+  default:
+    name: customer-network
