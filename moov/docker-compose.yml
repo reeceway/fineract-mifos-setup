@@ -8,6 +8,7 @@ version: '3.8'
 
 services:
   # ACH file handling for US domestic payments
+  # ACH server listens on port 8080 internally
   ach:
     image: moov/ach:latest
     container_name: moov-ach
@@ -17,7 +18,7 @@ services:
     environment:
       - LOG_FORMAT=plain
     healthcheck:
-      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8080/health"]
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8080/ping"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -31,16 +32,17 @@ services:
           memory: 256M
 
   # Wire/FedWire handling
+  # Wire server listens on port 8088 internally (not 8080)
   wire:
     image: moov/wire:latest
     container_name: moov-wire
     restart: always
     ports:
-      - "8201:8080"
+      - "8201:8088"
     environment:
       - LOG_FORMAT=plain
     healthcheck:
-      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8080/health"]
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8088/ping"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -54,14 +56,21 @@ services:
           memory: 256M
 
   # ISO 20022 message handling
+  # ISO20022 CLI tool - run as web server for API access
   iso20022:
     image: moov/iso20022:latest
     container_name: moov-iso20022
     restart: always
+    command: web
     ports:
       - "8202:8080"
     environment:
       - LOG_FORMAT=plain
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8080/ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
     networks:
       - moov-network
       - mifos-app
