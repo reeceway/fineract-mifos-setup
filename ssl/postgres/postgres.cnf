@@ -1,0 +1,26 @@
+[req]
+default_bits = 2048
+prompt = no
+default_md = sha256
+distinguished_name = dn
+req_extensions = req_ext
+
+[dn]
+C = US
+ST = State
+L = City
+O = MifosBank
+OU = IT
+CN = postgresql
+
+[req_ext]
+subjectAltName = @alt_names
+
+[alt_names]
+DNS.1 = postgresql
+DNS.2 = postgres
+DNS.3 = mifosx-postgresql-postgresql-1
+DNS.4 = keycloak-postgres
+DNS.5 = marble-postgres
+DNS.6 = localhost
+IP.1 = 127.0.0.1

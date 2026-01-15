@@ -19,13 +19,21 @@ services:
     networks:
       - fineract-network
 
-  # Database service
+  # Database service (SSL ENABLED)
   postgresql:
     image: postgres:16.6
     volumes:
       - ./fineract-db/docker/01-init.sh:/docker-entrypoint-initdb.d/01-init.sh:Z,ro
       - postgres-data:/var/lib/postgresql/data
+      - ${SSL_DIR:-/Users/reeceway/Desktop/fineract-mifos-setup/ssl}/postgres/postgres.crt:/var/lib/postgresql/server.crt:ro
+      - ${SSL_DIR:-/Users/reeceway/Desktop/fineract-mifos-setup/ssl}/postgres/postgres.key:/var/lib/postgresql/server.key:ro
+      - ${SSL_DIR:-/Users/reeceway/Desktop/fineract-mifos-setup/ssl}/postgres/ca.crt:/var/lib/postgresql/ca.crt:ro
     restart: always
+    command: >
+      -c ssl=on
+      -c ssl_cert_file=/var/lib/postgresql/server.crt
+      -c ssl_key_file=/var/lib/postgresql/server.key
+      -c ssl_ca_file=/var/lib/postgresql/ca.crt
     environment:
       - POSTGRES_USER=postgres
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
@@ -62,7 +70,7 @@ services:
       - FINERACT_NODE_ID=1
       # NOTE: env vars prefixed "FINERACT_HIKARI_*" are used to configure the database connection pool
       - FINERACT_HIKARI_DRIVER_SOURCE_CLASS_NAME=org.postgresql.Driver
-      - FINERACT_HIKARI_JDBC_URL=jdbc:postgresql://postgresql:5432/fineract_tenants?sslmode=prefer
+      - FINERACT_HIKARI_JDBC_URL=jdbc:postgresql://postgresql:5432/fineract_tenants?sslmode=require
       - FINERACT_HIKARI_USERNAME=postgres
       - FINERACT_HIKARI_PASSWORD=${POSTGRES_PASSWORD}
       # ... following variables are optional; "application.properties" contains reasonable defaults (same as here)

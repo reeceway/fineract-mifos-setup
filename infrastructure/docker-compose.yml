@@ -14,7 +14,7 @@ services:
   # MESSAGE GATEWAY - SMS/Email Notifications (Official Mifos Component)
   # ===========================================================================
   message-gateway:
-    image: openmf/message-gateway:latest
+    image: openmf/message-gateway:v2
     container_name: mifos-message-gateway
     restart: always
     ports:
@@ -51,7 +51,7 @@ services:
     restart: always
     command: start-dev
     ports:
-      - "8180:8080"
+      - "8181:8080"
     environment:
       - KEYCLOAK_ADMIN=${KEYCLOAK_ADMIN:-admin}
       - KEYCLOAK_ADMIN_PASSWORD=${KEYCLOAK_ADMIN_PASSWORD}
@@ -114,10 +114,11 @@ services:
     volumes:
       - minio-data:/data
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      test: ["CMD", "mc", "ready", "local"]
       interval: 30s
       timeout: 20s
-      retries: 3
+      retries: 5
+      start_period: 30s
     networks:
       - app-network
     deploy:
@@ -176,21 +177,36 @@ services:
     image: confluentinc/cp-kafka:7.5.0
     container_name: mifos-kafka
     restart: always
-    # SECURITY: Only expose for internal service communication
+    # SECURITY: SSL for external, PLAINTEXT for inter-broker
     expose:
       - "9092"
+      - "9093"
     environment:
       KAFKA_BROKER_ID: 1
       KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
-      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT
+      # Dual listeners: PLAINTEXT for inter-broker, SSL for clients
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,SSL://0.0.0.0:9093
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,SSL://kafka:9093
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,SSL:SSL
       KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      # SSL Keystore configuration (JKS format)
+      KAFKA_SSL_KEYSTORE_FILENAME: kafka.broker.keystore.jks
+      KAFKA_SSL_KEYSTORE_CREDENTIALS: broker_keystore_creds
+      KAFKA_SSL_KEY_CREDENTIALS: broker_sslkey_creds
+      # SSL Truststore configuration (JKS format)
+      KAFKA_SSL_TRUSTSTORE_FILENAME: kafka.broker.truststore.jks
+      KAFKA_SSL_TRUSTSTORE_CREDENTIALS: broker_truststore_creds
+      # SSL settings for client connections
+      KAFKA_SSL_CLIENT_AUTH: none
+      KAFKA_SSL_ENDPOINT_IDENTIFICATION_ALGORITHM: ""
+      # Kafka settings
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
       KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
       KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
       KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
     volumes:
       - kafka-data:/var/lib/kafka/data
+      - ../ssl/kafka:/etc/kafka/secrets:ro
     depends_on:
       - zookeeper
     networks:
@@ -209,8 +225,14 @@ services:
       - "8090:8080"
     environment:
       - KAFKA_CLUSTERS_0_NAME=mifos-cluster
-      - KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS=kafka:9092
+      - KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS=kafka:9093
       - KAFKA_CLUSTERS_0_ZOOKEEPER=zookeeper:2181
+      - KAFKA_CLUSTERS_0_PROPERTIES_SECURITY_PROTOCOL=SSL
+      - KAFKA_CLUSTERS_0_PROPERTIES_SSL_TRUSTSTORE_LOCATION=/etc/kafka/secrets/kafka.broker.truststore.jks
+      - KAFKA_CLUSTERS_0_PROPERTIES_SSL_TRUSTSTORE_PASSWORD=${KAFKA_SSL_PASSWORD:-confluent}
+      - KAFKA_CLUSTERS_0_PROPERTIES_SSL_TRUSTSTORE_TYPE=JKS
+    volumes:
+      - ../ssl/kafka:/etc/kafka/secrets:ro
     depends_on:
       - kafka
     networks:
@@ -313,7 +335,7 @@ services:
     container_name: mifos-vault
     restart: always
     ports:
-      - "8200:8200"
+      - "8210:8200"
     environment:
       - VAULT_DEV_ROOT_TOKEN_ID=${VAULT_DEV_ROOT_TOKEN_ID}
       - VAULT_DEV_LISTEN_ADDRESS=0.0.0.0:8200
@@ -330,7 +352,7 @@ services:
           memory: 256M
 
   # ===========================================================================
-  # REDIS - Caching & Session Management (AUTH ENABLED)
+  # REDIS - Caching & Session Management (TLS + AUTH ENABLED)
   # ===========================================================================
   redis:
     image: redis:7-alpine
@@ -339,11 +361,21 @@ services:
     # SECURITY: No external port exposure
     expose:
       - "6379"
-    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD}
+    command: >
+      redis-server
+      --appendonly yes
+      --requirepass ${REDIS_PASSWORD}
+      --tls-port 6379
+      --port 0
+      --tls-cert-file /tls/redis.crt
+      --tls-key-file /tls/redis.key
+      --tls-ca-cert-file /tls/ca.crt
+      --tls-auth-clients no
     volumes:
       - redis-data:/data
+      - ../ssl/redis:/tls:ro
     healthcheck:
-      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
+      test: ["CMD", "redis-cli", "--tls", "--cacert", "/tls/ca.crt", "-a", "${REDIS_PASSWORD}", "ping"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -356,7 +388,7 @@ services:
           memory: 256M
 
   # ===========================================================================
-  # MYSQL - Message Gateway & Additional Services Database
+  # MYSQL - Message Gateway & Additional Services Database (SSL ENABLED)
   # ===========================================================================
   infra-mysql:
     image: mysql:8.0.36
@@ -365,13 +397,19 @@ services:
     # SECURITY: No external port exposure
     expose:
       - "3306"
+    command: >
+      --ssl-ca=/etc/mysql/ssl/ca.crt
+      --ssl-cert=/etc/mysql/ssl/mysql.crt
+      --ssl-key=/etc/mysql/ssl/mysql.key
+      --require_secure_transport=ON
     environment:
       - MYSQL_ROOT_PASSWORD=${MYSQL_PASSWORD}
       - MYSQL_DATABASE=messagegateway
     volumes:
       - infra-mysql-data:/var/lib/mysql
+      - ../ssl/mysql:/etc/mysql/ssl:ro
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "--ssl-mode=REQUIRED"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -384,29 +422,39 @@ services:
           memory: 1G
 
   # ===========================================================================
-  # NGINX - API Gateway & Load Balancer (SSL ENABLED)
+  # NGINX - API Gateway with WAF-like Security Controls
   # ===========================================================================
+  # Features: Rate limiting, Security headers, HTTPS, Connection limits
+  # For full ModSecurity WAF, deploy separately with OWASP CRS image
   nginx:
     image: nginx:1.25-alpine
     container_name: mifos-nginx
     restart: always
     ports:
       - "443:443"
-      - "8443:8443"
+      - "9443:8443"
     volumes:
       - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
       - ./nginx/ssl:/etc/nginx/ssl:ro
+      - nginx-logs:/var/log/nginx
     depends_on:
       - keycloak
       - minio
     networks:
       - dmz-network
       - app-network
+      - fineract-network
     deploy:
       resources:
         limits:
           cpus: '1'
           memory: 256M
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
 
   # ===========================================================================
   # PROMETHEUS - Metrics Collection
@@ -475,6 +523,7 @@ volumes:
   infra-mysql-data:
   prometheus-data:
   grafana-data:
+  nginx-logs:
 
 # =============================================================================
 # NETWORKS - Segmented for Security
@@ -484,11 +533,14 @@ networks:
     name: mifos-dmz
     driver: bridge
   app-network:
+    external: true
     name: mifos-app
-    driver: bridge
   data-network:
     name: mifos-data
     driver: bridge
   monitoring-network:
     name: mifos-monitoring
     driver: bridge
+  fineract-network:
+    external: true
+    name: mifos-fineract-network
