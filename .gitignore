@@ -37,3 +37,7 @@ logs/
 # Brain artifacts (if copied locally)
 # docs/audit/* is okay, but not if it contains sensitive info. 
 # My artifacts are generic markdown, so they are fine.
+# Build Artifacts
+*.war
+apache-fineract-src-*/
+
