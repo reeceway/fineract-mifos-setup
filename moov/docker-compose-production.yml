@@ -1,0 +1,100 @@
+# Moov Payment Rails - Production Configuration
+# SECURITY HARDENED for Banking Operations
+# Created: 2026-01-16
+
+name: moov-production
+
+services:
+  # ==========================================================================
+  # ACH PROCESSING - HARDENED
+  # ==========================================================================
+  moov-ach:
+    image: moov/ach:v1.38.1
+    container_name: moov-ach
+    restart: always
+    # SECURITY: Internal only, accessed via nginx gateway
+    expose:
+      - "8200"
+    environment:
+      - ACH_CONFIG_FILEPATH=/config/ach.yaml
+    volumes:
+      - ./config/ach.yaml:/config/ach.yaml:ro
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8200/ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    # Container hardening
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp
+    networks:
+      - moov-internal
+      - mifos-app
+
+  # ==========================================================================
+  # WIRE TRANSFER - HARDENED
+  # ==========================================================================
+  moov-wire:
+    image: moov/wire:v0.14.1
+    container_name: moov-wire
+    restart: always
+    # SECURITY: Internal only, accessed via nginx gateway
+    expose:
+      - "8200"
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8200/ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    # Container hardening
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp
+    networks:
+      - moov-internal
+      - mifos-app
+
+  # ==========================================================================
+  # ISO 20022 - HARDENED
+  # ==========================================================================
+  moov-iso20022:
+    image: moov/iso20022:v0.4.3
+    container_name: moov-iso20022
+    restart: always
+    # SECURITY: Internal only, accessed via nginx gateway
+    expose:
+      - "8200"
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8200/ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    # Container hardening
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp
+    networks:
+      - moov-internal
+      - mifos-app
+
+networks:
+  moov-internal:
+    name: moov-internal
+    driver: bridge
+    internal: true
+  mifos-app:
+    external: true
+    name: mifos-app

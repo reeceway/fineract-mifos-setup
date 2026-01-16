@@ -1,0 +1,59 @@
+{
+    "policy": {
+        "phases": {
+            "hot": {
+                "min_age": "0ms",
+                "actions": {
+                    "rollover": {
+                        "max_primary_shard_size": "50gb",
+                        "max_age": "30d"
+                    },
+                    "set_priority": {
+                        "priority": 100
+                    }
+                }
+            },
+            "warm": {
+                "min_age": "30d",
+                "actions": {
+                    "shrink": {
+                        "number_of_shards": 1
+                    },
+                    "forcemerge": {
+                        "max_num_segments": 1
+                    },
+                    "set_priority": {
+                        "priority": 50
+                    }
+                }
+            },
+            "cold": {
+                "min_age": "90d",
+                "actions": {
+                    "freeze": {},
+                    "set_priority": {
+                        "priority": 0
+                    }
+                }
+            },
+            "delete": {
+                "min_age": "2557d",
+                "actions": {
+                    "delete": {}
+                }
+            }
+        }
+    },
+    "_meta": {
+        "description": "ILM policy for banking audit logs - 7 year retention per GLBA/BSA requirements",
+        "regulatory_requirement": "BSA 31 CFR 103.38, GLBA Safeguards Rule",
+        "retention_period": "7 years (2557 days)",
+        "created": "2026-01-16",
+        "phases": {
+            "hot": "0-30 days: Active logging, full searchability",
+            "warm": "30-90 days: Reduced resources, still searchable",
+            "cold": "90 days - 7 years: Frozen, minimal resources, archive access",
+            "delete": "After 7 years: Automatic deletion"
+        }
+    }
+}

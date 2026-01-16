@@ -1,0 +1,14 @@
+# Grafana Dashboard Provisioning
+
+apiVersion: 1
+
+providers:
+  - name: Banking Operations
+    orgId: 1
+    folder: Banking
+    folderUid: banking
+    type: file
+    disableDeletion: false
+    updateIntervalSeconds: 30
+    options:
+      path: /var/lib/grafana/dashboards

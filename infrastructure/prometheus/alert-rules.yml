@@ -1,0 +1,135 @@
+# Prometheus Alert Rules for Banking Platform
+# BSA/AML Compliant Monitoring
+
+groups:
+  - name: critical_services
+    interval: 30s
+    rules:
+      # Fineract Core Banking
+      - alert: FineractDown
+        expr: up{job="fineract"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          compliance: ffiec
+        annotations:
+          summary: "Core banking system is down"
+          description: "Fineract server has been unreachable for more than 1 minute"
+          runbook: "Check Fineract container logs and restart if necessary"
+
+      # Keycloak Authentication
+      - alert: KeycloakDown
+        expr: up{job="keycloak"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          compliance: ffiec
+        annotations:
+          summary: "Authentication service is down"
+          description: "Keycloak has been unreachable for more than 1 minute"
+
+      # Database Availability
+      - alert: PostgreSQLDown
+        expr: pg_up == 0
+        for: 30s
+        labels:
+          severity: critical
+          compliance: glba
+        annotations:
+          summary: "PostgreSQL database is down"
+          description: "Primary database is unreachable"
+
+  - name: performance_alerts
+    interval: 60s
+    rules:
+      # High Database Connections
+      - alert: DatabaseConnectionsHigh
+        expr: pg_stat_activity_count > 100
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High database connection count"
+          description: "PostgreSQL has {{ $value }} active connections"
+
+      # High Memory Usage
+      - alert: ContainerMemoryHigh
+        expr: (container_memory_usage_bytes / container_spec_memory_limit_bytes) > 0.85
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Container memory usage above 85%"
+          description: "{{ $labels.name }} is using {{ $value | humanizePercentage }} of memory limit"
+
+      # High CPU Usage
+      - alert: ContainerCPUHigh
+        expr: rate(container_cpu_usage_seconds_total[5m]) > 0.85
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Container CPU usage above 85%"
+
+  - name: security_alerts
+    interval: 30s
+    rules:
+      # Failed Authentication Attempts
+      - alert: HighAuthenticationFailures
+        expr: rate(keycloak_login_attempts_total{outcome="failed"}[5m]) > 10
+        for: 2m
+        labels:
+          severity: warning
+          compliance: ffiec
+        annotations:
+          summary: "High rate of failed login attempts"
+          description: "Possible brute force attack detected"
+
+      # Certificate Expiry Warning
+      - alert: CertificateExpiryWarning
+        expr: (probe_ssl_earliest_cert_expiry - time()) / 86400 < 30
+        for: 1h
+        labels:
+          severity: warning
+        annotations:
+          summary: "SSL certificate expiring soon"
+          description: "Certificate expires in {{ $value | humanizeDuration }}"
+
+  - name: bsa_aml_alerts
+    interval: 60s
+    rules:
+      # Marble Compliance Alerts
+      - alert: MarbleHighSeverityAlert
+        expr: marble_alerts_total{severity="high"} > 0
+        for: 0m
+        labels:
+          severity: critical
+          compliance: bsa
+        annotations:
+          summary: "BSA/AML high-severity alert triggered"
+          description: "Marble compliance engine detected suspicious activity"
+
+      # Transaction Velocity Anomaly
+      - alert: TransactionVelocityAnomaly
+        expr: rate(fineract_transactions_total[5m]) > (avg_over_time(rate(fineract_transactions_total[5m])[1d:1h]) * 3)
+        for: 5m
+        labels:
+          severity: warning
+          compliance: bsa
+        annotations:
+          summary: "Unusual transaction velocity detected"
+          description: "Transaction rate is 3x normal - investigate for structuring"
+
+  - name: backup_alerts
+    interval: 300s
+    rules:
+      # Backup Age Alert
+      - alert: BackupTooOld
+        expr: (time() - backup_last_success_timestamp) > 86400
+        for: 1h
+        labels:
+          severity: warning
+          compliance: glba
+        annotations:
+          summary: "No successful backup in 24 hours"
+          description: "Most recent backup is {{ $value | humanizeDuration }} old"

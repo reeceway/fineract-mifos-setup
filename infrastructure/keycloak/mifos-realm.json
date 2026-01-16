@@ -1,0 +1,272 @@
+{
+    "realm": "mifos-banking",
+    "enabled": true,
+    "displayName": "Mifos Banking Platform",
+    "displayNameHtml": "<strong>Mifos Banking Platform</strong>",
+    "sslRequired": "external",
+    "registrationAllowed": false,
+    "loginWithEmailAllowed": true,
+    "duplicateEmailsAllowed": false,
+    "resetPasswordAllowed": true,
+    "editUsernameAllowed": false,
+    "bruteForceProtected": true,
+    "permanentLockout": false,
+    "maxFailureWaitSeconds": 900,
+    "minimumQuickLoginWaitSeconds": 60,
+    "waitIncrementSeconds": 60,
+    "quickLoginCheckMilliSeconds": 1000,
+    "maxDeltaTimeSeconds": 43200,
+    "failureFactor": 5,
+    "defaultSignatureAlgorithm": "RS256",
+    "accessTokenLifespan": 900,
+    "accessTokenLifespanForImplicitFlow": 900,
+    "ssoSessionIdleTimeout": 900,
+    "ssoSessionMaxLifespan": 28800,
+    "offlineSessionIdleTimeout": 2592000,
+    "accessCodeLifespan": 60,
+    "accessCodeLifespanUserAction": 300,
+    "accessCodeLifespanLogin": 1800,
+    "actionTokenGeneratedByAdminLifespan": 43200,
+    "actionTokenGeneratedByUserLifespan": 300,
+    "passwordPolicy": "length(12) and upperCase(1) and lowerCase(1) and specialChars(1) and digits(1) and notUsername() and passwordHistory(5)",
+    "otpPolicyType": "totp",
+    "otpPolicyAlgorithm": "HmacSHA256",
+    "otpPolicyInitialCounter": 0,
+    "otpPolicyDigits": 6,
+    "otpPolicyLookAheadWindow": 1,
+    "otpPolicyPeriod": 30,
+    "requiredCredentials": [
+        "password"
+    ],
+    "roles": {
+        "realm": [
+            {
+                "name": "bank-admin",
+                "description": "Full administrative access to banking platform"
+            },
+            {
+                "name": "branch-manager",
+                "description": "Branch-level management access"
+            },
+            {
+                "name": "teller",
+                "description": "Teller operations access"
+            },
+            {
+                "name": "loan-officer",
+                "description": "Loan origination and management"
+            },
+            {
+                "name": "compliance-officer",
+                "description": "BSA/AML compliance operations"
+            },
+            {
+                "name": "customer",
+                "description": "Customer self-service access"
+            }
+        ]
+    },
+    "clients": [
+        {
+            "clientId": "fineract-api",
+            "enabled": true,
+            "publicClient": false,
+            "bearerOnly": true,
+            "protocol": "openid-connect"
+        },
+        {
+            "clientId": "mifos-web-app",
+            "enabled": true,
+            "publicClient": true,
+            "directAccessGrantsEnabled": false,
+            "standardFlowEnabled": true,
+            "implicitFlowEnabled": false,
+            "protocol": "openid-connect",
+            "redirectUris": [
+                "https://localhost/*",
+                "https://localhost:443/*"
+            ],
+            "webOrigins": [
+                "https://localhost"
+            ]
+        },
+        {
+            "clientId": "customer-portal",
+            "enabled": true,
+            "publicClient": true,
+            "directAccessGrantsEnabled": false,
+            "standardFlowEnabled": true,
+            "implicitFlowEnabled": false,
+            "protocol": "openid-connect",
+            "redirectUris": [
+                "https://localhost/customer/*"
+            ],
+            "webOrigins": [
+                "https://localhost"
+            ]
+        },
+        {
+            "clientId": "marble-compliance",
+            "enabled": true,
+            "publicClient": false,
+            "bearerOnly": true,
+            "protocol": "openid-connect"
+        }
+    ],
+    "authenticationFlows": [
+        {
+            "alias": "browser-with-otp",
+            "description": "Browser based authentication with required OTP",
+            "providerId": "basic-flow",
+            "topLevel": true,
+            "builtIn": false,
+            "authenticationExecutions": [
+                {
+                    "authenticator": "auth-cookie",
+                    "requirement": "ALTERNATIVE",
+                    "priority": 10,
+                    "userSetupAllowed": false,
+                    "autheticatorFlow": false
+                },
+                {
+                    "authenticator": "auth-spnego",
+                    "requirement": "DISABLED",
+                    "priority": 20,
+                    "userSetupAllowed": false,
+                    "autheticatorFlow": false
+                },
+                {
+                    "authenticator": "identity-provider-redirector",
+                    "requirement": "ALTERNATIVE",
+                    "priority": 25,
+                    "userSetupAllowed": false,
+                    "autheticatorFlow": false
+                },
+                {
+                    "flowAlias": "forms-with-otp",
+                    "requirement": "ALTERNATIVE",
+                    "priority": 30,
+                    "userSetupAllowed": false,
+                    "autheticatorFlow": true
+                }
+            ]
+        },
+        {
+            "alias": "forms-with-otp",
+            "description": "Username/password with required OTP verification",
+            "providerId": "basic-flow",
+            "topLevel": false,
+            "builtIn": false,
+            "authenticationExecutions": [
+                {
+                    "authenticator": "auth-username-password-form",
+                    "requirement": "REQUIRED",
+                    "priority": 10,
+                    "userSetupAllowed": false,
+                    "autheticatorFlow": false
+                },
+                {
+                    "flowAlias": "otp-forms",
+                    "requirement": "REQUIRED",
+                    "priority": 20,
+                    "userSetupAllowed": false,
+                    "autheticatorFlow": true
+                }
+            ]
+        },
+        {
+            "alias": "otp-forms",
+            "description": "OTP verification form",
+            "providerId": "basic-flow",
+            "topLevel": false,
+            "builtIn": false,
+            "authenticationExecutions": [
+                {
+                    "authenticator": "auth-otp-form",
+                    "requirement": "REQUIRED",
+                    "priority": 10,
+                    "userSetupAllowed": true,
+                    "autheticatorFlow": false
+                }
+            ]
+        }
+    ],
+    "browserFlow": "browser-with-otp",
+    "requiredActions": [
+        {
+            "alias": "CONFIGURE_TOTP",
+            "name": "Configure OTP",
+            "providerId": "CONFIGURE_TOTP",
+            "enabled": true,
+            "defaultAction": true,
+            "priority": 10
+        },
+        {
+            "alias": "VERIFY_EMAIL",
+            "name": "Verify Email",
+            "providerId": "VERIFY_EMAIL",
+            "enabled": true,
+            "defaultAction": false,
+            "priority": 20
+        },
+        {
+            "alias": "UPDATE_PASSWORD",
+            "name": "Update Password",
+            "providerId": "UPDATE_PASSWORD",
+            "enabled": true,
+            "defaultAction": false,
+            "priority": 30
+        }
+    ],
+    "users": [
+        {
+            "username": "bank-admin",
+            "enabled": true,
+            "emailVerified": true,
+            "firstName": "Bank",
+            "lastName": "Administrator",
+            "email": "admin@example.com",
+            "credentials": [
+                {
+                    "type": "password",
+                    "value": "${KEYCLOAK_BANK_ADMIN_PASSWORD}",
+                    "temporary": true
+                }
+            ],
+            "realmRoles": [
+                "bank-admin"
+            ],
+            "requiredActions": [
+                "CONFIGURE_TOTP",
+                "UPDATE_PASSWORD"
+            ]
+        }
+    ],
+    "eventsConfig": {
+        "eventsEnabled": true,
+        "eventsExpiration": 604800,
+        "eventsListeners": [
+            "jboss-logging"
+        ],
+        "enabledEventTypes": [
+            "LOGIN",
+            "LOGIN_ERROR",
+            "LOGOUT",
+            "LOGOUT_ERROR",
+            "CODE_TO_TOKEN",
+            "CODE_TO_TOKEN_ERROR",
+            "REFRESH_TOKEN",
+            "REFRESH_TOKEN_ERROR",
+            "REGISTER",
+            "REGISTER_ERROR",
+            "UPDATE_PASSWORD",
+            "UPDATE_PASSWORD_ERROR",
+            "UPDATE_TOTP",
+            "UPDATE_TOTP_ERROR",
+            "REMOVE_TOTP",
+            "REMOVE_TOTP_ERROR"
+        ],
+        "adminEventsEnabled": true,
+        "adminEventsDetailsEnabled": true
+    }
+}

@@ -1,0 +1,31 @@
+# Grafana Datasource Provisioning
+# Auto-configure Prometheus as primary datasource
+
+apiVersion: 1
+
+datasources:
+  - name: Prometheus
+    type: prometheus
+    access: proxy
+    url: http://mifos-prometheus:9090
+    isDefault: true
+    editable: false
+    jsonData:
+      timeInterval: "15s"
+      httpMethod: POST
+
+  - name: Elasticsearch
+    type: elasticsearch
+    access: proxy
+    url: http://mifos-elasticsearch:9200
+    database: "audit-*"
+    editable: false
+    basicAuth: true
+    basicAuthUser: elastic
+    secureJsonData:
+      basicAuthPassword: ${ELASTICSEARCH_PASSWORD}
+    jsonData:
+      esVersion: "8.11.0"
+      timeField: "@timestamp"
+      logMessageField: "message"
+      logLevelField: "level"

@@ -55,9 +55,17 @@ services:
     image: quay.io/keycloak/keycloak:23.0
     container_name: mifos-keycloak
     restart: always
-    command: start-dev
-    ports:
-      - "8181:8080"
+    # PRODUCTION MODE with realm import
+    command: >
+      start
+      --import-realm
+      --hostname=localhost
+      --hostname-strict=false
+      --http-enabled=true
+      --proxy=edge
+    # SECURITY: Route through nginx, no direct exposure
+    expose:
+      - "8080"
     environment:
       - KEYCLOAK_ADMIN=${KEYCLOAK_ADMIN:-admin}
       - KEYCLOAK_ADMIN_PASSWORD=${KEYCLOAK_ADMIN_PASSWORD}
@@ -65,6 +73,12 @@ services:
       - KC_DB_URL=jdbc:postgresql://keycloak-postgres:5432/keycloak
       - KC_DB_USERNAME=keycloak
       - KC_DB_PASSWORD=${POSTGRES_PASSWORD}
+      # Logging for audit
+      - KC_LOG_LEVEL=INFO
+      - KC_LOG_CONSOLE_OUTPUT=json
+    volumes:
+      # Import realm with MFA enabled
+      - ./keycloak/mifos-realm.json:/opt/keycloak/data/import/mifos-realm.json:ro
     # Hardening
     cap_drop:
       - ALL
@@ -578,6 +592,7 @@ services:
       - "9090:9090"
     volumes:
       - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./prometheus/alert-rules.yml:/etc/prometheus/alert-rules.yml:ro
       - prometheus-data:/prometheus
     # Hardening
     cap_drop:
@@ -627,6 +642,9 @@ services:
       - /var/lib/grafana/png
     volumes:
       - grafana-data:/var/lib/grafana
+      - ./grafana/provisioning/datasources:/etc/grafana/provisioning/datasources:ro
+      - ./grafana/provisioning/alerting:/etc/grafana/provisioning/alerting:ro
+      - ./grafana/provisioning/dashboards:/etc/grafana/provisioning/dashboards:ro
     depends_on:
       - prometheus
     networks:

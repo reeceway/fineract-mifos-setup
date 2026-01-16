@@ -1,0 +1,29 @@
+# Grafana Alerting Provisioning
+# Contact points and notification policies
+
+apiVersion: 1
+
+contactPoints:
+  - orgId: 1
+    name: banking-alerts
+    receivers:
+      # Placeholder - configure actual email/Slack/PagerDuty in production
+      - uid: critical-email
+        type: email
+        settings:
+          addresses: alerts@your-bank.com
+        disableResolveMessage: false
+
+policies:
+  - orgId: 1
+    receiver: banking-alerts
+    group_by: ['alertname', 'severity']
+    group_wait: 30s
+    group_interval: 5m
+    repeat_interval: 4h
+    routes:
+      - receiver: banking-alerts
+        matchers:
+          - severity = critical
+        group_wait: 10s
+        repeat_interval: 1h
