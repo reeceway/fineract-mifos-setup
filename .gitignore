@@ -1,57 +1,39 @@
-# Dependencies
-node_modules/
-vendor/
 
-# Build outputs
-*.class
-*.jar
-*.war
-build/
-target/
-dist/
+# Secrets (Vault, Env, Keys)
+infrastructure/vault/keys/
+infrastructure/vault/data/
+infrastructure/vault/file/
+**/.env
+**/*.env
+**/.env.*
+**/init.json
 
-# IDE
-.idea/
-*.iml
-.vscode/
-*.swp
-*.swo
+# SSL/TLS
+ssl/
+*.key
+*.csr
+*.srl
+*.jks
+*.p12
+*.keystore
+*.truststore
 
-# OS
-.DS_Store
-Thumbs.db
-
-# Docker volumes (don't commit data)
-**/data/
-**/volumes/
-
-# Environment files with secrets
-.env
-.env.local
-.env.production
-*.env.local
-
-# Keep .env.dev as example but not production secrets
-!.env.dev.example
-!.env.example
+# Backups
+backups/
+*.tar.gz
+*.tar.gz.enc
+*.sql
+*.bak
 
 # Logs
-*.log
 logs/
+*.log
 
-# Temporary files
-tmp/
-temp/
-*.tmp
+# IDE/System
+.DS_Store
+.idea/
+.vscode/
 
-# Database files
-*.sql
-!**/docker/*.sql
-*.dump
-
-# Credentials
-*.pem
-*.key
-*.crt
-credentials.json
-secrets.yaml
+# Brain artifacts (if copied locally)
+# docs/audit/* is okay, but not if it contains sensitive info. 
+# My artifacts are generic markdown, so they are fine.

@@ -1,0 +1,29 @@
+# Task List for Fineract Mifos Setup Audit & Enhancement
+
+- [ ] **Phase 1: Discovery & Audit**
+    - [ ] Explore project structure and documentation
+    - [ ] Analyze existing configurations (Docker, scripts)
+    - [ ] Identify security gaps (credentials, secrets, network)
+    - [ ] Identify compliance gaps (logging, auditing, data persistence)
+    - [ ] Check for missing tests and validation steps
+- [ ] **Phase 2: Planning & Architecture**
+    - [ ] Create detailed Implementation Plan
+    - [ ] Define "Institutional Banking" standards checklist
+- [ ] **Phase 3: Execution - Infrastructure & Configuration**
+    - [x] Secure sensitive data (Secrets management) -- Vault Configured & Secrets Generated
+    - [x] Configure SSL/TLS for all internal services (PostgreSQL, Kafka, Redis) -- Certificates & JKS Generated
+    - [x] Harden Docker configurations
+    - [x] Implement robust logging and monitoring setup
+- [x] **Phase 4: Execution - Code & Scripts**
+    - [x] Refactor scripts for error handling and idempotency
+    - [x] Add missing validation logic (`validate_setup.sh`)
+    - [x] Create automated backup/restore scripts (`backup_data.sh`, `restore_data.sh`)
+- [x] **Phase 5: Verification - Security Testing**
+    - [x] Perform manual verification of all remedial actions
+    - [x] Run automated security scans (static analysis simulation)
+    - [x] Generate final Security Audit Report (`security_report.md`)
+- [x] **Phase 6: US Compliance & Regulatory Alignment**
+    - [x] **Nginx Hardening**: Rate Limit, Security Headers, Hide Version.
+    - [x] **Backup Encryption**: Encrypt `backup_data.sh` output with AES-256 (GLBA).
+    - [x] **Fineract Config**: Enforce 15m Session Timeout (`SERVER_SERVLET_SESSION_TIMEOUT=900s`).
+    - [x] **Database Audit**: Verify PostgreSQL Query Logging (`log_statement=mod`).

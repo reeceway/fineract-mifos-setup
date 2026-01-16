@@ -1,0 +1,25 @@
+filebeat.config:
+  modules:
+    path: ${path.config}/modules.d/*.yml
+    reload.enabled: false
+
+filebeat.autodiscover:
+  providers:
+    - type: docker
+      hints.enabled: true
+      # Default processors to ensure we capture relevant metadata
+      processors:
+        - add_docker_metadata: ~
+        - add_host_metadata: ~
+        - add_cloud_metadata: ~
+        - add_locale: ~
+
+output.logstash:
+  hosts: ["logstash:5044"]
+
+setup.kibana:
+  host: "kibana:5601"
+
+# Standard logging for filebeat itself
+logging.level: warning
+logging.to_files: false

@@ -16,35 +16,44 @@ scrape_configs:
       - targets: ['localhost:9090']
 
   # Fineract metrics (if actuator enabled)
+  # Fineract metrics (if actuator enabled)
   - job_name: 'fineract'
     metrics_path: '/fineract-provider/actuator/prometheus'
+    scheme: https
+    tls_config:
+      insecure_skip_verify: true
     static_configs:
-      - targets: ['host.docker.internal:8080']
+      - targets: ['mifosx-postgresql-fineract-server-1:8443']
 
-  # Kafka metrics
-  - job_name: 'kafka'
+  # cAdvisor metrics
+  - job_name: 'cadvisor'
     static_configs:
-      - targets: ['kafka:9092']
+      - targets: ['cadvisor:8080']
 
-  # Redis metrics
-  - job_name: 'redis'
-    static_configs:
-      - targets: ['redis:6379']
+  # Kafka metrics (Requires JMX Exporter)
+  # - job_name: 'kafka'
+  #   static_configs:
+  #     - targets: ['kafka:9092']
 
-  # Elasticsearch metrics
-  - job_name: 'elasticsearch'
-    metrics_path: '/_prometheus/metrics'
-    static_configs:
-      - targets: ['elasticsearch:9200']
+  # Redis metrics (Requires Redis Exporter)
+  # - job_name: 'redis'
+  #   static_configs:
+  #     - targets: ['redis:6379']
+
+  # Elasticsearch metrics (Requires ES Exporter)
+  # - job_name: 'elasticsearch'
+  #   metrics_path: '/_prometheus/metrics'
+  #   static_configs:
+  #     - targets: ['elasticsearch:9200']
 
   # MinIO metrics
-  - job_name: 'minio'
-    metrics_path: '/minio/v2/metrics/cluster'
-    static_configs:
-      - targets: ['minio:9000']
+  # - job_name: 'minio'
+  #   metrics_path: '/minio/v2/metrics/cluster'
+  #   static_configs:
+  #     - targets: ['minio:9000']
 
   # Keycloak metrics
-  - job_name: 'keycloak'
-    metrics_path: '/metrics'
-    static_configs:
-      - targets: ['keycloak:8080']
+  # - job_name: 'keycloak'
+  #   metrics_path: '/metrics'
+  #   static_configs:
+  #     - targets: ['keycloak:8080']

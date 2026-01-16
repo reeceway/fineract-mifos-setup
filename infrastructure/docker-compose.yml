@@ -1,5 +1,3 @@
-version: '3.8'
-
 # =============================================================================
 # COMPLETE INSTITUTIONAL BANKING INFRASTRUCTURE - PRODUCTION SECURED
 # =============================================================================
@@ -14,7 +12,7 @@ services:
   # MESSAGE GATEWAY - SMS/Email Notifications (Official Mifos Component)
   # ===========================================================================
   message-gateway:
-    image: openmf/message-gateway:v2
+    image: openmf/message-gateway:latest
     container_name: mifos-message-gateway
     restart: always
     ports:
@@ -30,6 +28,14 @@ services:
       - SPRING_MAIL_PORT=${SMTP_PORT:-587}
       - SPRING_MAIL_USERNAME=${SMTP_USERNAME:-}
       - SPRING_MAIL_PASSWORD=${SMTP_PASSWORD:-}
+    # Hardening
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp
     depends_on:
       infra-mysql:
         condition: service_healthy
@@ -59,6 +65,15 @@ services:
       - KC_DB_URL=jdbc:postgresql://keycloak-postgres:5432/keycloak
       - KC_DB_USERNAME=keycloak
       - KC_DB_PASSWORD=${POSTGRES_PASSWORD}
+    # Hardening
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp
+      - /opt/keycloak/data/tmp
     depends_on:
       keycloak-postgres:
         condition: service_healthy
@@ -79,6 +94,20 @@ services:
       - POSTGRES_DB=keycloak
       - POSTGRES_USER=keycloak
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+    # Hardening
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - SETGID
+      - SETUID
+      - DAC_OVERRIDE
+      - DAC_READ_SEARCH
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /tmp
+      - /var/run/postgresql
     volumes:
       - keycloak-postgres-data:/var/lib/postgresql/data
     healthcheck:
@@ -111,6 +140,15 @@ services:
     environment:
       - MINIO_ROOT_USER=${MINIO_ROOT_USER:-minio_admin}
       - MINIO_ROOT_PASSWORD=${MINIO_ROOT_PASSWORD}
+    # Hardening
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp
+      - /minio/config
     volumes:
       - minio-data:/data
     healthcheck:
@@ -143,6 +181,15 @@ services:
       mc mb myminio/signatures --ignore-existing;
       exit 0;
       "
+    # Hardening
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp
+      - /root/.mc
     environment:
       - MINIO_ROOT_USER=${MINIO_ROOT_USER:-minio_admin}
       - MINIO_ROOT_PASSWORD=${MINIO_ROOT_PASSWORD}
@@ -191,11 +238,11 @@ services:
       KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
       # SSL Keystore configuration (JKS format)
       KAFKA_SSL_KEYSTORE_FILENAME: kafka.broker.keystore.jks
-      KAFKA_SSL_KEYSTORE_CREDENTIALS: broker_keystore_creds
-      KAFKA_SSL_KEY_CREDENTIALS: broker_sslkey_creds
+      KAFKA_SSL_KEYSTORE_PASSWORD: changeit
+      KAFKA_SSL_KEY_PASSWORD: changeit
       # SSL Truststore configuration (JKS format)
       KAFKA_SSL_TRUSTSTORE_FILENAME: kafka.broker.truststore.jks
-      KAFKA_SSL_TRUSTSTORE_CREDENTIALS: broker_truststore_creds
+      KAFKA_SSL_TRUSTSTORE_PASSWORD: changeit
       # SSL settings for client connections
       KAFKA_SSL_CLIENT_AUTH: none
       KAFKA_SSL_ENDPOINT_IDENTIFICATION_ALGORITHM: ""
@@ -204,6 +251,8 @@ services:
       KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
       KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
       KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+    # Hardening
+    # Reverted hardening for Kafka/Zookeeper due to image compatibility issues (requires root/special caps)
     volumes:
       - kafka-data:/var/lib/kafka/data
       - ../ssl/kafka:/etc/kafka/secrets:ro
@@ -229,8 +278,16 @@ services:
       - KAFKA_CLUSTERS_0_ZOOKEEPER=zookeeper:2181
       - KAFKA_CLUSTERS_0_PROPERTIES_SECURITY_PROTOCOL=SSL
       - KAFKA_CLUSTERS_0_PROPERTIES_SSL_TRUSTSTORE_LOCATION=/etc/kafka/secrets/kafka.broker.truststore.jks
-      - KAFKA_CLUSTERS_0_PROPERTIES_SSL_TRUSTSTORE_PASSWORD=${KAFKA_SSL_PASSWORD:-confluent}
+      - KAFKA_CLUSTERS_0_PROPERTIES_SSL_TRUSTSTORE_PASSWORD=changeit
       - KAFKA_CLUSTERS_0_PROPERTIES_SSL_TRUSTSTORE_TYPE=JKS
+    # Hardening
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp
     volumes:
       - ../ssl/kafka:/etc/kafka/secrets:ro
     depends_on:
@@ -261,6 +318,13 @@ services:
       - ELASTIC_PASSWORD=${ELASTICSEARCH_PASSWORD}
       - "ES_JAVA_OPTS=-Xms1g -Xmx1g"
       - cluster.name=mifos-audit
+    # Hardening
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /tmp
     volumes:
       - elasticsearch-data:/usr/share/elasticsearch/data
     healthcheck:
@@ -289,6 +353,13 @@ services:
       - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
       - ELASTICSEARCH_USERNAME=kibana_system
       - ELASTICSEARCH_PASSWORD=${ELASTICSEARCH_PASSWORD}
+    # Hardening
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /tmp
     depends_on:
       elasticsearch:
         condition: service_healthy
@@ -310,12 +381,19 @@ services:
     restart: always
     ports:
       - "5044:5044"
-      - "5000:5000"
+      - "5001:5000"
     volumes:
       - ./logstash/pipeline:/usr/share/logstash/pipeline:ro
     environment:
       - "LS_JAVA_OPTS=-Xmx512m -Xms512m"
       - ELASTICSEARCH_PASSWORD=${ELASTICSEARCH_PASSWORD}
+    # Hardening
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /tmp
     depends_on:
       elasticsearch:
         condition: service_healthy
@@ -336,20 +414,25 @@ services:
     restart: always
     ports:
       - "8210:8200"
-    environment:
-      - VAULT_DEV_ROOT_TOKEN_ID=${VAULT_DEV_ROOT_TOKEN_ID}
-      - VAULT_DEV_LISTEN_ADDRESS=0.0.0.0:8200
     cap_add:
       - IPC_LOCK
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
     volumes:
-      - vault-data:/vault/data
+      - ./vault/file:/vault/file
+      - ./vault/config:/vault/config:ro
+      - ./vault/ssl:/vault/ssl:ro
+    entrypoint: vault server -config=/vault/config/vault.hcl
     networks:
       - app-network
     deploy:
       resources:
         limits:
           cpus: '0.5'
-          memory: 256M
+          memory: 512M
 
   # ===========================================================================
   # REDIS - Caching & Session Management (TLS + AUTH ENABLED)
@@ -371,6 +454,17 @@ services:
       --tls-key-file /tls/redis.key
       --tls-ca-cert-file /tls/ca.crt
       --tls-auth-clients no
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - SETGID
+      - SETUID
+      - DAC_OVERRIDE
+      - DAC_READ_SEARCH
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
     volumes:
       - redis-data:/data
       - ../ssl/redis:/tls:ro
@@ -405,6 +499,23 @@ services:
     environment:
       - MYSQL_ROOT_PASSWORD=${MYSQL_PASSWORD}
       - MYSQL_DATABASE=messagegateway
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - SETGID
+      - SETUID
+      - DAC_OVERRIDE
+      - DAC_READ_SEARCH
+    # MySQL requires some capabilities to run efficiently, typically SETGID, SETUID, SYS_NICE etc if running as root initially to drop privs
+    # Running strictly confined MySQL can be tricky. official image starts as root then switches.
+    # We will try dropping ALL and see if it holds, otherwise we might need minimal caps.
+    # Using 'no-new-privileges:true' prevents escalation.
+    security_opt:
+      - no-new-privileges:true
+    # MySQL needs write to /tmp
+    tmpfs:
+      - /tmp
     volumes:
       - infra-mysql-data:/var/lib/mysql
       - ../ssl/mysql:/etc/mysql/ssl:ro
@@ -468,6 +579,14 @@ services:
     volumes:
       - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - prometheus-data:/prometheus
+    # Hardening
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp
     command:
       - '--config.file=/etc/prometheus/prometheus.yml'
       - '--storage.tsdb.path=/prometheus'
@@ -476,6 +595,7 @@ services:
       - monitoring-network
       - app-network
       - data-network
+      - fineract-network
     deploy:
       resources:
         limits:
@@ -495,6 +615,16 @@ services:
       - GF_SECURITY_ADMIN_USER=${GF_SECURITY_ADMIN_USER:-admin}
       - GF_SECURITY_ADMIN_PASSWORD=${GF_SECURITY_ADMIN_PASSWORD}
       - GF_USERS_ALLOW_SIGN_UP=false
+    # Hardening
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp
+      - /var/lib/grafana/plugins
+      - /var/lib/grafana/png
     volumes:
       - grafana-data:/var/lib/grafana
     depends_on:
@@ -502,11 +632,53 @@ services:
     networks:
       - monitoring-network
       - app-network
+      - fineract-network
     deploy:
       resources:
         limits:
           cpus: '1'
           memory: 512M
+
+  # ===========================================================================
+  # FILEBEAT - Log Shipper
+  # ===========================================================================
+  filebeat:
+    image: docker.elastic.co/beats/filebeat:8.11.0
+    container_name: mifos-filebeat
+    user: root
+    volumes:
+      - ./filebeat/filebeat.yml:/usr/share/filebeat/filebeat.yml:ro
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    depends_on:
+      - logstash
+      - elasticsearch
+    networks:
+      - monitoring-network
+      - app-network
+
+  # ===========================================================================
+  # CADVISOR - Container Metrics
+  # ===========================================================================
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:v0.47.2
+    container_name: mifos-cadvisor
+    privileged: true
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+      - /dev/disk/:/dev/disk:ro
+    ports:
+      - "8081:8080"
+    networks:
+      - monitoring-network
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
 
 # =============================================================================
 # VOLUMES

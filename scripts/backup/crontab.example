@@ -1,0 +1,48 @@
+# =============================================================================
+# MifosBank Backup Crontab Configuration
+# =============================================================================
+# Install with: crontab /path/to/crontab.example
+# Or add entries to existing crontab with: crontab -e
+# =============================================================================
+
+# Environment variables
+SHELL=/bin/bash
+PATH=/usr/local/bin:/usr/bin:/bin
+MAILTO=admin@yourbank.com
+PROJECT_ROOT=/path/to/fineract-mifos-setup
+BACKUP_DIR=/backups
+BACKUP_ENCRYPTION_KEY=your-secure-encryption-key-here
+
+# =============================================================================
+# Database Backups - Every 6 hours
+# =============================================================================
+# PostgreSQL backup at 00:00, 06:00, 12:00, 18:00
+0 0,6,12,18 * * * $PROJECT_ROOT/scripts/backup/backup-postgres.sh >> /var/log/mifos-backup.log 2>&1
+
+# MySQL backup at 00:15, 06:15, 12:15, 18:15
+15 0,6,12,18 * * * $PROJECT_ROOT/scripts/backup/backup-mysql.sh >> /var/log/mifos-backup.log 2>&1
+
+# =============================================================================
+# Daily Backups - Once per day at 02:00 AM
+# =============================================================================
+# Elasticsearch snapshot
+0 2 * * * $PROJECT_ROOT/scripts/backup/backup-elasticsearch.sh >> /var/log/mifos-backup.log 2>&1
+
+# Vault backup
+30 2 * * * $PROJECT_ROOT/scripts/backup/backup-vault.sh >> /var/log/mifos-backup.log 2>&1
+
+# =============================================================================
+# Full Backup Run - Weekly on Sunday at 03:00 AM
+# =============================================================================
+0 3 * * 0 $PROJECT_ROOT/scripts/backup/backup-all.sh >> /var/log/mifos-backup.log 2>&1
+
+# =============================================================================
+# Backup Verification - Daily at 05:00 AM
+# =============================================================================
+0 5 * * * $PROJECT_ROOT/scripts/backup/verify-backups.sh >> /var/log/mifos-backup.log 2>&1
+
+# =============================================================================
+# Off-site Sync - Every 4 hours (requires aws cli or similar)
+# =============================================================================
+# Sync to S3 (uncomment and configure for production)
+# 0 */4 * * * aws s3 sync /backups s3://your-backup-bucket/ --delete >> /var/log/mifos-backup-sync.log 2>&1
